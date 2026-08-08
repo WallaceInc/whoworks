@@ -23,7 +23,7 @@ when the zone goes active.
 1. Cloudflare dash → **Workers & Pages** → **Create** → **Pages** →
    **Upload assets**
 2. Project name: `whoworks`
-3. Drag the **contents** of this `site/` folder in — not the folder itself.
+3. Drag the **contents** of this `docs/` folder in — not the folder itself.
    The upload should show `index.html` at the top level, plus `privacy/`,
    `support/`, `icon.png`, `screenshot.png`.
 4. **Deploy**
@@ -54,7 +54,7 @@ App Review does check that the privacy policy URL resolves.
 ## Updating later
 
 Same project → **Create deployment** → drag the folder again. Or run
-`npx wrangler pages deploy site --project-name=whoworks` from the repo root.
+`npx wrangler pages deploy docs --project-name=whoworks` from the repo root.
 
 ## Structure
 

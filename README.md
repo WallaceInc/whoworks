@@ -63,7 +63,7 @@ ContactsPlus/
   Views/        ContactListView, ContactRowView, SwipeableRow,
                 SectionIndexBar, ContactCardView
 AppStore/       Listing copy, privacy policy, 6.9" screenshots
-site/           whoworks.app — landing, privacy, support
+docs/           whoworks.app — landing, privacy, support
 ```
 
 ## Notes for anyone changing the list
