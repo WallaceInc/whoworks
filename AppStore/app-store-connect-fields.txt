@@ -113,12 +113,18 @@ Tapping a contact presents the system CNContactViewController.
 [9] URLS
 ----------------------------------------------------------------
 
+LIVE NOW (GitHub Pages) — usable for submission today:
+
+Support URL:         https://wallaceinc.github.io/whoworks/support/
+Marketing URL:       https://wallaceinc.github.io/whoworks/
+Privacy Policy URL:  https://wallaceinc.github.io/whoworks/privacy/
+
+Swap to these once whoworks.app DNS is pointed (see docs/DEPLOY.md).
+URLs can be changed on any future version, so this is not a lock-in.
+
 Support URL:         https://whoworks.app/support
 Marketing URL:       https://whoworks.app
 Privacy Policy URL:  https://whoworks.app/privacy
-
-Pages are built in site/ — deploy that folder to whoworks.app.
-Note: .app is an HTTPS-only TLD, so the host must serve TLS.
 
 
 ----------------------------------------------------------------
