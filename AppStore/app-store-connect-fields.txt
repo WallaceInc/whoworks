@@ -1,0 +1,135 @@
+================================================================
+APP STORE CONNECT — WhoWorks
+Plain text, ready to copy field by field.
+================================================================
+
+
+----------------------------------------------------------------
+[1] NEW APP FORM  (Apps > + > New App)
+----------------------------------------------------------------
+
+Platform:          iOS
+Name:              WhoWorks
+Primary Language:  English (U.S.)
+Bundle ID:         com.whoworks.ios
+SKU:               whoworks-ios-001
+User Access:       Full Access
+
+
+----------------------------------------------------------------
+[2] SUBTITLE   (30 characters max — this is 24)
+----------------------------------------------------------------
+
+Contacts, with companies
+
+
+----------------------------------------------------------------
+[3] DESCRIPTION   (4000 max — this is ~1550)
+----------------------------------------------------------------
+
+The built-in Contacts app gives you one line per person: their name. If you deal with people through their work, that's the wrong line — you end up scrolling a thousand names looking for the one who does your plumbing.
+
+WhoWorks adds a zoom gesture to your contact list. Pinch out and each row shows more.
+
+• Names — the standard list
+• Names and companies — the company in smaller type under each name
+• With email — add the email address underneath
+• By company — the list regroups under company headings instead of letters
+
+Contacts missing a field simply don't show that line. Nothing is padded out with blanks.
+
+Most people never fill in the Company field, so WhoWorks works it out from a work email address when one is there — someone@acme-tools.com becomes Acme Tools. Inferred companies are shown in lighter type so you can always tell a guess from something you typed. Personal addresses like gmail and icloud are ignored.
+
+WhoWorks reads the same address book as Contacts and the Phone app. There's no import, no separate copy, and no syncing — edit a contact anywhere and it's current here. Tap anyone to open the standard iOS contact card with all the usual call, message and FaceTime options.
+
+Also included:
+• Search by company or job title, not just name
+• Swipe a row to call or message, or to add a favourite
+• Favourites pinned to the top of the list
+• Your contacts in Spotlight, searchable by company from the home screen
+
+WhoWorks works entirely on your device. It makes no network requests of any kind, has no account, and no analytics. Your address book never leaves your iPhone.
+
+
+----------------------------------------------------------------
+[4] PROMOTIONAL TEXT   (170 max — this is 139)
+----------------------------------------------------------------
+
+Pinch to zoom your contact list. See who someone works for without opening their card, and group everyone by company.
+
+
+----------------------------------------------------------------
+[5] KEYWORDS   (100 max, commas, NO spaces after commas — this is 97)
+----------------------------------------------------------------
+
+company,business,directory,work,card,zoom,organize,search,colleagues,rolodex,address,book
+
+
+----------------------------------------------------------------
+[6] CATEGORY / RATING / PRICE
+----------------------------------------------------------------
+
+Primary Category:    Productivity
+Secondary Category:  Utilities
+Age Rating:          4+  (answer "None" to every content question)
+Price:               Free
+
+
+----------------------------------------------------------------
+[7] APP PRIVACY
+----------------------------------------------------------------
+
+"Do you or your third-party partners collect data from this app?"
+   -> NO
+
+Nothing else to fill in. The app has no networking code, no SDKs and no
+analytics. Contacts are read locally and never transmitted.
+
+
+----------------------------------------------------------------
+[8] REVIEW NOTES   (paste into "Notes" when submitting)
+----------------------------------------------------------------
+
+WhoWorks is a contacts browser built around a zoom gesture. The core feature is
+not available in the built-in Contacts app: pinching the list changes how much
+detail each row shows, and at the deepest level the list regroups under company
+headings rather than alphabetically.
+
+This exists because the built-in Contacts app shows only a person's name in the
+list. The company field is visible only if a contact has no name at all. Users
+who deal with people through their employer commonly work around this by typing
+the company into the last-name field, which corrupts sorting and sharing.
+WhoWorks makes the company visible without that workaround.
+
+To reproduce: open the app, grant contacts access, then pinch outward on the
+list with two fingers. The row detail changes through four levels. The same
+control is in the "AA" menu in the navigation bar for accessibility.
+
+The app is entirely offline. It makes no network requests and collects no data.
+Tapping a contact presents the system CNContactViewController.
+
+
+----------------------------------------------------------------
+[9] URLS
+----------------------------------------------------------------
+
+Support URL:         https://whoworks.app/support
+Marketing URL:       https://whoworks.app
+Privacy Policy URL:  https://whoworks.app/privacy
+
+Pages are built in site/ — deploy that folder to whoworks.app.
+Note: .app is an HTTPS-only TLD, so the host must serve TLS.
+
+
+----------------------------------------------------------------
+[10] SCREENSHOTS
+----------------------------------------------------------------
+
+Upload from AppStore/screenshots-6.9/ in this order:
+
+  1. 03-level2.png   name, company and email together
+  2. 04-level3.png   grouped by company
+  3. 02-level1.png   name and company
+  4. 01-level0.png   plain names, for contrast
+
+6.9" (1320 x 2868) is the only iPhone size Apple now requires.

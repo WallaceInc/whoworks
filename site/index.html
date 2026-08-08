@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhoWorks — Contacts, with companies</title>
+<meta name="description" content="Pinch to zoom your iPhone contact list. See who someone works for without opening their card, and group everyone by company.">
+<link rel="icon" href="/icon.png">
+<meta property="og:title" content="WhoWorks — Contacts, with companies">
+<meta property="og:description" content="Pinch to zoom your iPhone contact list. See who someone works for without opening their card.">
+<meta property="og:image" content="https://whoworks.app/screenshot.png">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1c; --muted: #6b6c72;
+    --line: #e4e4e8; --accent: #1a73e8; --card: #f7f7f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#101013; --fg:#f2f2f4; --muted:#9a9ba2; --line:#2a2a30; --card:#18181d; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  header { padding: 72px 0 40px; }
+  .mark { display: flex; align-items: center; gap: 14px; margin-bottom: 40px; }
+  .mark img { width: 56px; height: 56px; border-radius: 13px; }
+  .mark span { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(32px, 6vw, 46px); line-height: 1.12; letter-spacing: -0.025em; margin: 0 0 18px; }
+  .lede { font-size: 20px; color: var(--muted); margin: 0 0 32px; max-width: 34em; }
+  main { padding-bottom: 40px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em;
+       color: var(--muted); font-weight: 600; margin: 48px 0 16px; }
+  .levels { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .level { display: flex; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+  .level:last-child { border-bottom: 0; }
+  .n { flex: 0 0 26px; height: 26px; border-radius: 50%; background: var(--card);
+       color: var(--muted); font-size: 13px; font-weight: 600;
+       display: grid; place-items: center; }
+  .level b { font-weight: 600; }
+  .level p { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
+  figure { margin: 32px 0; text-align: center; }
+  figure img { max-width: 300px; width: 100%; border-radius: 22px; border: 1px solid var(--line); }
+  .privacy { background: var(--card); border-radius: 14px; padding: 22px 24px; margin: 40px 0; }
+  .privacy p { margin: 0; color: var(--muted); }
+  .privacy strong { color: var(--fg); }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 56px;
+           display: flex; gap: 22px; flex-wrap: wrap; font-size: 15px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer span { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="mark">
+      <img src="/icon.png" alt="">
+      <span>WhoWorks</span>
+    </div>
+    <h1>Your contacts already know where everyone works.</h1>
+    <p class="lede">
+      The Contacts app shows one line per person: their name. If you deal with
+      people through their work, that's the wrong line. WhoWorks lets you pinch
+      the list open and see more.
+    </p>
+  </header>
+
+  <main>
+    <h2>Four levels</h2>
+    <div class="levels">
+      <div class="level"><div class="n">1</div><div><b>Names</b><p>The standard list.</p></div></div>
+      <div class="level"><div class="n">2</div><div><b>Names and companies</b><p>The company in smaller type under each name.</p></div></div>
+      <div class="level"><div class="n">3</div><div><b>With email</b><p>The email address underneath that.</p></div></div>
+      <div class="level"><div class="n">4</div><div><b>By company</b><p>The list regroups under company headings instead of letters.</p></div></div>
+    </div>
+
+    <figure>
+      <img src="/screenshot.png" alt="WhoWorks showing names with company and email beneath each one">
+    </figure>
+
+    <h2>It fills in the gaps</h2>
+    <p>
+      Most people never fill in the Company field. When it's empty, WhoWorks
+      works the company out from a work email address — someone@acme-tools.com
+      becomes Acme Tools. Guesses are shown in lighter type so you always know
+      which is which, and personal addresses like gmail are ignored.
+    </p>
+
+    <h2>Same address book</h2>
+    <p>
+      No import, no separate copy, no syncing. WhoWorks reads the same contacts
+      as the Contacts and Phone apps, so anything you edit anywhere is current
+      here. Tap someone to open the standard iOS contact card.
+    </p>
+
+    <div class="privacy">
+      <p>
+        <strong>Nothing leaves your iPhone.</strong> WhoWorks makes no network
+        requests of any kind. There is no account, no analytics, and no server
+        for your contacts to be sent to.
+      </p>
+    </div>
+  </main>
+
+  <footer>
+    <a href="/privacy">Privacy</a>
+    <a href="/support">Support</a>
+    <span>© 2026 WhoWorks</span>
+  </footer>
+
+</div>
+</body>
+</html>
