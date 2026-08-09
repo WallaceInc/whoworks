@@ -19,6 +19,11 @@ final class SwipeCoordinator {
 ///
 /// Swipe left: message and call. Swipe right: favourite.
 ///
+/// Deliberately no `.contextMenu`: a `UIContextMenuInteraction` on every row
+/// runs a long-press recogniser that delays touches reaching the scroll view
+/// while it decides. That blocked vertical scrolling for around a second once
+/// a sideways movement had started.
+///
 /// The layering here is the whole trick, and both halves are load-bearing:
 ///
 /// * **The drag gesture sits on the outer container**, which never moves. Put it
@@ -52,6 +57,10 @@ struct SwipeableRow<Content: View>: View {
     /// Kept true through the closing animation, so the buttons don't vanish
     /// while the row is still sliding back over them.
     @State private var actionsMounted = false
+    /// Unlike `onEnded`, `@GestureState` resets even when a gesture is
+    /// *cancelled* — which is what happens when the scroll view claims the
+    /// touch. Without it the direction flags leaked into the next gesture.
+    @GestureState private var dragging = false
 
     private let actionWidth: CGFloat = 78
     /// Below roughly 15pt the row's drag beats the scroll view to the touch and
@@ -112,17 +121,19 @@ struct SwipeableRow<Content: View>: View {
         // Recognising simultaneously lets scrolling begin at once; the direction
         // lock below still keeps the row from moving during a vertical drag.
         .simultaneousGesture(drag)
-        .contextMenu {
-            if phoneNumber != nil {
-                Button { onCall() } label: { Label("Call", systemImage: "phone.fill") }
-                Button { onMessage() } label: { Label("Message", systemImage: "message.fill") }
+        .onChange(of: dragging) { _, active in
+            guard !active else { return }
+            // Cancelled mid-swipe leaves the row stranded between positions.
+            if engaged, offset != 0 {
+                withAnimation(.snappy(duration: 0.2)) {
+                    if offset > maxLeading / 2 { offset = maxLeading }
+                    else if offset < -maxTrailing / 2 { offset = -maxTrailing }
+                    else { offset = 0 }
+                }
+                unmountIfClosed()
             }
-            Button { onToggleFavorite() } label: {
-                Label(
-                    isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                    systemImage: isFavorite ? "star.slash" : "star"
-                )
-            }
+            decided = false
+            engaged = false
         }
         .onChange(of: coordinator.openRowID) { _, newValue in
             if newValue != rowID, offset != 0 { close() }
@@ -143,6 +154,7 @@ struct SwipeableRow<Content: View>: View {
 
     private var drag: some Gesture {
         DragGesture(minimumDistance: minimumDragDistance)
+            .updating($dragging) { _, state, _ in state = true }
             .onChanged { value in
                 let dx = value.translation.width
                 let dy = value.translation.height
