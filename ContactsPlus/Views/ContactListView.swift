@@ -24,6 +24,7 @@ struct ContactListView: View {
     @State private var badgeVisible = false
     @State private var badgeToken = 0
     @State private var card: ContactCard?
+    @State private var moreOptions: Person?
     @State private var pendingDelete: Person?
 
     /// Built off the main actor and cached — see `rebuild()`.
@@ -61,6 +62,20 @@ struct ContactListView: View {
                     guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String
                     else { return }
                     openCard(for: id)
+                }
+                .confirmationDialog(
+                    moreOptions?.displayName ?? "",
+                    isPresented: Binding(
+                        get: { moreOptions != nil },
+                        set: { if !$0 { moreOptions = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Contact…", role: .destructive) {
+                        pendingDelete = moreOptions
+                        moreOptions = nil
+                    }
+                    Button("Cancel", role: .cancel) { moreOptions = nil }
                 }
                 .confirmationDialog(
                     pendingDelete.map { "Delete \($0.displayName)?" } ?? "",
@@ -238,9 +253,13 @@ struct ContactListView: View {
                 }
                 .tint(.orange)
 
-                Button(role: .destructive) { pendingDelete = person } label: {
-                    Label("Delete", systemImage: "trash.fill")
+                // Not Delete directly. SwiftUI can't stage a swipe reveal, so
+                // deliberateness comes from a neutral "More" that opens the
+                // menu — a mis-tap here costs nothing.
+                Button { moreOptions = person } label: {
+                    Label("More", systemImage: "ellipsis.circle.fill")
                 }
+                .tint(.gray)
             }
             // A favourite appears both pinned at the top and in its normal
             // section, so the row id must include the section or they collide.
