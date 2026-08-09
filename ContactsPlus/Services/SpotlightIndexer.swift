@@ -25,9 +25,15 @@ enum SpotlightIndexer {
     static func index(_ people: [Person]) async {
         // Re-indexing thousands of contacts on every launch burns CPU right when
         // the list is first being scrolled. Only do it when something changed.
+        let sigStart = CFAbsoluteTimeGetCurrent()
         let current = signature(of: people)
+        #if DEBUG
+        print(String(format: "[perf] spotlight signature %.0fms", (CFAbsoluteTimeGetCurrent() - sigStart) * 1000))
+        #endif
         guard UserDefaults.standard.string(forKey: signatureKey) != current else {
+            #if DEBUG
             print("[spotlight] unchanged, skipping reindex")
+            #endif
             return
         }
 
@@ -76,9 +82,13 @@ enum SpotlightIndexer {
             }
 
             UserDefaults.standard.set(current, forKey: signatureKey)
-            print("[spotlight] indexed \(items.count) contacts")
+            #if DEBUG
+            print(String(format: "[perf] spotlight indexed %d in %.0fms", items.count, (CFAbsoluteTimeGetCurrent() - sigStart) * 1000))
+            #endif
         } catch {
+            #if DEBUG
             print("[spotlight] indexing failed: \(error)")
+            #endif
         }
     }
 }

@@ -78,15 +78,25 @@ final class ContactRepository {
         request.sortOrder = .userDefault
         request.unifyResults = true
 
+        let t0 = CFAbsoluteTimeGetCurrent()
         var results: [Person] = []
         results.reserveCapacity(1024)
         try store.enumerateContacts(with: request) { contact, _ in
             results.append(Person(contact: contact, sortOrder: sortOrder))
         }
+        let enumerated = CFAbsoluteTimeGetCurrent()
+        let withPhotos = results.count { $0.thumbnail != nil }
+        #if DEBUG
+        print(String(format: "[perf] enumerate %.0fms  %d contacts  %d with photos",
+                     (enumerated - t0) * 1000, results.count, withPhotos))
+        #endif
 
         // `.userDefault` already sorts, but sectioning depends on `sortKey`
         // agreeing with the visual order, so re-sort on the same key.
         results.sort { $0.sortKey.localizedStandardCompare($1.sortKey) == .orderedAscending }
+        #if DEBUG
+        print(String(format: "[perf] sort %.0fms", (CFAbsoluteTimeGetCurrent() - enumerated) * 1000))
+        #endif
         return results
     }
 }

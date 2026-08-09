@@ -65,7 +65,12 @@ struct ContactListView: View {
                 .onChange(of: favorites.ids) { rebuild() }
         }
         .task {
+            let t0 = CFAbsoluteTimeGetCurrent()
             await repo.load()
+            let loaded = CFAbsoluteTimeGetCurrent()
+            #if DEBUG
+            print(String(format: "[perf] load total %.0fms", (loaded - t0) * 1000))
+            #endif
             rebuild()
 
             // Detached and delayed: indexing must never compete with the first
@@ -261,6 +266,7 @@ struct ContactListView: View {
         let query = search
         let grouped = density.groupsByCompany
         let pinned = favorites.ids
+        let buildStart = CFAbsoluteTimeGetCurrent()
 
         Task {
             let data = await Task.detached(priority: .userInitiated) {
@@ -270,7 +276,14 @@ struct ContactListView: View {
             guard token == buildToken else { return }
             listItems = data.items
             indexEntries = data.index
+            let wasFirst = !hasBuilt
             hasBuilt = true
+            if wasFirst {
+                #if DEBUG
+                print(String(format: "[perf] first build %.0fms  %d rows",
+                             (CFAbsoluteTimeGetCurrent() - buildStart) * 1000, data.items.count))
+                #endif
+            }
         }
     }
 
