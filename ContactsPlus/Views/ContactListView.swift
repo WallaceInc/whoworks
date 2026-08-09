@@ -6,10 +6,10 @@ struct ContactListView: View {
     /// 1.25 means a full level costs roughly an 80% spread.
     private static let pinchSensitivity = 1.25
 
-    /// Deadband. A level changes once the pinch travels this far past the last
-    /// committed step — not the halfway point, which made it slip through two
-    /// levels at once. Measuring from the last step gives hysteresis for free,
-    /// and keeps working when the level wraps around.
+    /// Deadband. The level only changes once the gesture travels this far past
+    /// the *current* level — not the halfway point, which is what made it slip
+    /// through two levels on one pinch. Re-measured from the new level after
+    /// each change, so it gives hysteresis for free.
     private static let levelChangeThreshold = 0.7
 
     /// Heading for contacts with no company, when grouped by company.
@@ -23,7 +23,6 @@ struct ContactListView: View {
     @State private var search = ""
     @State private var anchorID: String?
     @State private var pinchBaseline: DensityLevel?
-    @State private var pinchSteps = 0
     @State private var badgeVisible = false
     @State private var badgeToken = 0
     @State private var card: ContactCard?
@@ -194,39 +193,22 @@ struct ContactListView: View {
     private var pinch: some Gesture {
         MagnifyGesture(minimumScaleDelta: 0.1)
             .onChanged { value in
-                if pinchBaseline == nil {
-                    pinchBaseline = density
-                    pinchSteps = 0
-                }
+                let baseline = pinchBaseline ?? density
+                if pinchBaseline == nil { pinchBaseline = baseline }
 
-                // Travel measured in whole levels. Committed steps are tracked
-                // separately from the level itself, because the level wraps and
-                // so can't be used to work out how far the gesture has come.
-                let travel = log2(max(value.magnification, 0.25)) * Self.pinchSensitivity
+                let steps = log2(max(value.magnification, 0.25)) * Self.pinchSensitivity
+                let continuous = Double(baseline.rawValue) + steps
 
-                while travel - Double(pinchSteps) >= Self.levelChangeThreshold {
-                    pinchSteps += 1
-                    advanceLevel(by: 1)
-                }
-                while travel - Double(pinchSteps) <= -Self.levelChangeThreshold {
-                    pinchSteps -= 1
-                    advanceLevel(by: -1)
-                }
+                // Must clear the deadband around the level we're currently on.
+                guard abs(continuous - Double(density.rawValue)) >= Self.levelChangeThreshold
+                else { return }
+
+                let level = DensityLevel.clamped(Int(continuous.rounded()))
+                guard level.rawValue != storedDensity else { return }
+                withAnimation(.snappy(duration: 0.22)) { storedDensity = level.rawValue }
+                flashBadge()
             }
-            .onEnded { _ in
-                pinchBaseline = nil
-                pinchSteps = 0
-            }
-    }
-
-    /// Wraps around both ends, so you can keep pinching the same direction and
-    /// cycle through the levels rather than reversing at the extremes.
-    private func advanceLevel(by delta: Int) {
-        let count = DensityLevel.allCases.count
-        let next = ((density.rawValue + delta) % count + count) % count
-        guard next != storedDensity else { return }
-        withAnimation(.snappy(duration: 0.22)) { storedDensity = next }
-        flashBadge()
+            .onEnded { _ in pinchBaseline = nil }
     }
 
     /// The gesture is invisible, so confirm it landed.
