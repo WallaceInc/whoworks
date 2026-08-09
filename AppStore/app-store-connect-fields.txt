@@ -138,4 +138,13 @@ Upload from AppStore/screenshots-6.9/ in this order:
   3. 02-level1.png   name and company
   4. 01-level0.png   plain names, for contrast
 
-6.9" (1320 x 2868) is the only iPhone size Apple now requires.
+6.9" (1320 x 2868) is the only size needed — Apple scales it down for
+smaller iPhones automatically.
+
+The app is iPhone-only (UIDeviceFamily 1), so App Store Connect does NOT
+ask for an iPad set. If iPad support is ever added, a 13" iPad set at
+2064 x 2752 becomes mandatory.
+
+Screenshots must have NO alpha channel. simctl writes PNGs with
+transparency and App Store Connect rejects those; these have been
+flattened.
