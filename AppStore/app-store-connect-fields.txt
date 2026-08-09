@@ -131,20 +131,20 @@ Privacy Policy URL:  https://whoworks.app/privacy
 [10] SCREENSHOTS
 ----------------------------------------------------------------
 
-Upload from AppStore/screenshots-6.9/ in this order:
+Three sets are provided; upload whichever the slot in front of you asks for.
+Same four images in each, same order:
 
   1. 03-level2.png   name, company and email together
   2. 04-level3.png   grouped by company
   3. 02-level1.png   name and company
   4. 01-level0.png   plain names, for contrast
 
-6.9" (1320 x 2868) is the only size needed — Apple scales it down for
-smaller iPhones automatically.
+  AppStore/screenshots-6.9/   1320 x 2868   6.9" slot
+  AppStore/screenshots-6.7/   1284 x 2778   6.5"/6.7" slot
+  AppStore/screenshots-6.5/   1242 x 2688   6.5" slot
 
-The app is iPhone-only (UIDeviceFamily 1), so App Store Connect does NOT
-ask for an iPad set. If iPad support is ever added, a 13" iPad set at
-2064 x 2752 becomes mandatory.
+All are opaque. simctl writes PNGs with an alpha channel and App Store
+Connect rejects those, so every set has been flattened.
 
-Screenshots must have NO alpha channel. simctl writes PNGs with
-transparency and App Store Connect rejects those; these have been
-flattened.
+The app is iPhone-only (UIDeviceFamily 1), so no iPad set is required.
+Adding iPad support later would make a 13" set (2064 x 2752) mandatory.
