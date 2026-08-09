@@ -32,6 +32,8 @@ struct ContactListView: View {
     // re-sectioned and re-sorted the whole address book while you scrolled.
     @State private var listItems: [ListItem] = []
     @State private var indexEntries: [IndexEntry] = []
+    @State private var buildToken = 0
+    @State private var hasBuilt = false
 
     private var density: DensityLevel { DensityLevel.clamped(storedDensity) }
 
@@ -57,7 +59,9 @@ struct ContactListView: View {
                     openCard(for: id)
                 }
                 .onChange(of: search) { rebuild() }
-                .onChange(of: storedDensity) { rebuild() }
+                // Levels 0/1/2 share identical sectioning — only level 3 regroups,
+                // so most zoom steps need no rebuild at all.
+                .onChange(of: density.groupsByCompany) { rebuild() }
                 .onChange(of: favorites.ids) { rebuild() }
         }
         .task {
@@ -119,7 +123,9 @@ struct ContactListView: View {
             ContentUnavailableView("Couldn't Load Contacts", systemImage: "exclamationmark.triangle", description: Text(message))
 
         case .ready:
-            if listItems.isEmpty {
+            if !hasBuilt {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if listItems.isEmpty {
                 ContentUnavailableView.search(text: search)
             } else {
                 list
@@ -244,42 +250,92 @@ struct ContactListView: View {
 
     // MARK: - Sectioning
 
-    private var filtered: [Person] {
-        let query = search.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return repo.people }
-        return repo.people.filter { $0.matches(query) }
+    /// Everything below is a *pure function* of these inputs, deliberately, so
+    /// the work can run off the main actor. Sectioning a large address book is
+    /// tens of milliseconds — imperceptible in isolation, but very perceptible
+    /// when it happens between your finger landing and the list scrolling.
+    private func rebuild() {
+        buildToken &+= 1
+        let token = buildToken
+        let people = repo.people
+        let query = search
+        let grouped = density.groupsByCompany
+        let pinned = favorites.ids
+
+        Task {
+            let data = await Task.detached(priority: .userInitiated) {
+                Self.buildList(people: people, query: query, groupByCompany: grouped, favorites: pinned)
+            }.value
+            // A newer rebuild may have started while this one ran.
+            guard token == buildToken else { return }
+            listItems = data.items
+            indexEntries = data.index
+            hasBuilt = true
+        }
     }
 
-    private struct ListSection: Identifiable {
+    struct ListData: Sendable {
+        var items: [ListItem] = []
+        var index: [IndexEntry] = []
+    }
+
+    private struct ListSection {
         let id: String
         let title: String
         let indexLetter: String
         let people: [Person]
     }
 
-    private var sections: [ListSection] {
-        var result = density.groupsByCompany ? companySections : alphabeticalSections
-        if let pinned = favoritesSection { result.insert(pinned, at: 0) }
-        return result
+    /// Headers and rows flattened into one sequence. Keeping them as direct
+    /// children of `scrollTargetLayout()` is what lets `scrollPosition(id:)`
+    /// anchor on an individual contact.
+    nonisolated static func buildList(
+        people: [Person], query: String, groupByCompany: Bool, favorites: Set<String>
+    ) -> ListData {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        let filtered = trimmed.isEmpty ? people : people.filter { $0.matches(trimmed) }
+
+        var sections = groupByCompany
+            ? companySections(filtered)
+            : alphabeticalSections(filtered)
+
+        // Favourites pin to the top, but not while searching — there you want
+        // plain results rather than a pinned block.
+        if trimmed.isEmpty {
+            let starred = people
+                .filter { favorites.contains($0.id) }
+                .sorted { $0.sortKey.localizedStandardCompare($1.sortKey) == .orderedAscending }
+            if !starred.isEmpty {
+                sections.insert(
+                    ListSection(id: "★", title: "Favorites", indexLetter: "★", people: starred),
+                    at: 0
+                )
+            }
+        }
+
+        var items: [ListItem] = []
+        items.reserveCapacity(filtered.count + sections.count + 8)
+        var index: [IndexEntry] = []
+        var seenLetters = Set<String>()
+
+        for section in sections {
+            items.append(.header(id: section.id, title: section.title))
+            for person in section.people {
+                items.append(.person(person, sectionID: section.id))
+            }
+            if seenLetters.insert(section.indexLetter).inserted {
+                index.append(IndexEntry(letter: section.indexLetter, sectionID: section.id))
+            }
+        }
+        return ListData(items: items, index: index)
     }
 
-    /// Pinned to the top at every zoom level. Hidden while searching, where you
-    /// want plain results rather than a pinned block.
-    private var favoritesSection: ListSection? {
-        guard search.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-        let people = repo.people
-            .filter { favorites.contains($0.id) }
-            .sorted { $0.sortKey.localizedStandardCompare($1.sortKey) == .orderedAscending }
-        guard !people.isEmpty else { return nil }
-        return ListSection(id: "★", title: "Favorites", indexLetter: "★", people: people)
-    }
-
-    private var alphabeticalSections: [ListSection] {
+    nonisolated private static func alphabeticalSections(_ people: [Person]) -> [ListSection] {
         var result: [ListSection] = []
         var currentKey: String?
         var bucket: [Person] = []
 
-        for person in filtered {
+        for person in people {
             if person.sectionKey != currentKey {
                 if let key = currentKey {
                     result.append(ListSection(id: "§\(key)", title: key, indexLetter: key, people: bucket))
@@ -297,51 +353,30 @@ struct ContactListView: View {
 
     /// Grouped by company, alphabetically, with everyone lacking a company
     /// collected under "Unknown" at the bottom.
-    private var companySections: [ListSection] {
+    nonisolated private static func companySections(_ people: [Person]) -> [ListSection] {
         var groups: [String: [Person]] = [:]
-        for person in filtered {
-            let key = person.companyGroup.isEmpty ? Self.unknownCompany : person.companyGroup
+        for person in people {
+            let key = person.companyGroup.isEmpty ? unknownCompany : person.companyGroup
             groups[key, default: []].append(person)
         }
 
-        let named = groups.keys
-            .filter { $0 != Self.unknownCompany }
+        var ordered = groups.keys
+            .filter { $0 != unknownCompany }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-
-        var ordered = named
-        if groups[Self.unknownCompany] != nil { ordered.append(Self.unknownCompany) }
+        if groups[unknownCompany] != nil { ordered.append(unknownCompany) }
 
         return ordered.map { company in
-            let people = (groups[company] ?? []).sorted {
+            let members = (groups[company] ?? []).sorted {
                 $0.sortKey.localizedStandardCompare($1.sortKey) == .orderedAscending
             }
-            let isUnknown = company == Self.unknownCompany
-            let letter = isUnknown
+            let letter = company == unknownCompany
                 ? "#"
                 : (company.first.map { String($0).uppercased() } ?? "#")
-            return ListSection(id: "¶\(company)", title: company, indexLetter: letter, people: people)
+            return ListSection(id: "¶\(company)", title: company, indexLetter: letter, people: members)
         }
     }
 
-    /// Headers and rows flattened into one sequence. Keeping them as direct
-    /// children of `scrollTargetLayout()` is what lets `scrollPosition(id:)`
-    /// anchor on an individual contact.
-    private func rebuild() {
-        let built = sections
-        listItems = built.flatMap { section in
-            [ListItem.header(id: section.id, title: section.title)]
-                + section.people.map { ListItem.person($0, sectionID: section.id) }
-        }
-
-        // One tick per distinct letter, pointing at the first section using it.
-        var seen = Set<String>()
-        indexEntries = built.compactMap { section in
-            guard seen.insert(section.indexLetter).inserted else { return nil }
-            return IndexEntry(letter: section.indexLetter, sectionID: section.id)
-        }
-    }
-
-    enum ListItem: Identifiable, Hashable {
+    enum ListItem: Identifiable, Hashable, Sendable {
         case header(id: String, title: String)
         case person(Person, sectionID: String)
 
