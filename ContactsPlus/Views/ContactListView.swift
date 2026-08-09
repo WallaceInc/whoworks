@@ -226,14 +226,10 @@ struct ContactListView: View {
                     }
                     .tint(.blue)
                 }
-
-                // Listed last so it sits furthest from the edge — a short swipe
-                // reaches Call, never this.
-                Button(role: .destructive) { pendingDelete = person } label: {
-                    Label("Delete", systemImage: "trash.fill")
-                }
             }
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                // Favourite is listed first, so it sits at the edge and is what
+                // a full swipe triggers. Delete needs a deliberate pull past it.
                 Button { favorites.toggle(person.id) } label: {
                     Label(
                         favorites.contains(person.id) ? "Unfavourite" : "Favourite",
@@ -241,6 +237,10 @@ struct ContactListView: View {
                     )
                 }
                 .tint(.orange)
+
+                Button(role: .destructive) { pendingDelete = person } label: {
+                    Label("Delete", systemImage: "trash.fill")
+                }
             }
             // A favourite appears both pinned at the top and in its normal
             // section, so the row id must include the section or they collide.
