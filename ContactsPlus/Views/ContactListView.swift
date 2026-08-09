@@ -17,20 +17,16 @@ struct ContactListView: View {
 
     @State private var repo = ContactRepository()
     @State private var favorites = FavoritesStore()
-    @State private var swipe = SwipeCoordinator()
     @AppStorage("density.level") private var storedDensity = DensityLevel.names.rawValue
 
     @State private var search = ""
-    @State private var anchorID: String?
     @State private var pinchBaseline: DensityLevel?
     @State private var badgeVisible = false
     @State private var badgeToken = 0
     @State private var card: ContactCard?
 
-    // Cached. `.scrollPosition(id:)` writes `anchorID` on every scroll update,
-    // which re-runs this view's body — so as computed properties these
-    // re-sectioned and re-sorted the whole address book while you scrolled.
-    @State private var listItems: [ListItem] = []
+    /// Built off the main actor and cached — see `rebuild()`.
+    @State private var sections: [ListSection] = []
     @State private var indexEntries: [IndexEntry] = []
     @State private var buildToken = 0
     @State private var hasBuilt = false
@@ -65,12 +61,7 @@ struct ContactListView: View {
                 .onChange(of: favorites.ids) { rebuild() }
         }
         .task {
-            let t0 = CFAbsoluteTimeGetCurrent()
             await repo.load()
-            let loaded = CFAbsoluteTimeGetCurrent()
-            #if DEBUG
-            print(String(format: "[perf] load total %.0fms", (loaded - t0) * 1000))
-            #endif
             rebuild()
 
             // Detached and delayed: indexing must never compete with the first
@@ -130,7 +121,7 @@ struct ContactListView: View {
         case .ready:
             if !hasBuilt {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if listItems.isEmpty {
+            } else if sections.isEmpty {
                 ContentUnavailableView.search(text: search)
             } else {
                 list
@@ -139,35 +130,43 @@ struct ContactListView: View {
     }
 
     // MARK: - List
+    //
+    // A plain `List`, deliberately. This used to be a hand-rolled
+    // `ScrollView`/`LazyVStack` with a `DragGesture` on every row, so a pinch
+    // could hold its scroll position. But a SwiftUI `DragGesture` has to begin
+    // tracking before it can decide it isn't interested, and that tracking
+    // delayed the start of every scroll by a visible beat.
+    //
+    // Profiling settled it: zero hangs in 90 seconds of reproducing the
+    // problem, main thread idle ~85% of the time. The app wasn't busy — the
+    // touches weren't reaching the scroll view. `List` hands scrolling and
+    // swipe actions to UITableView, which arbitrates them properly.
+    //
+    // The cost is that scroll position is no longer preserved across a zoom.
+    // That's a fair trade for a list that scrolls the moment you ask it to.
 
     private var list: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(listItems) { item in
-                        switch item {
-                        case .header(_, let title):
-                            SectionHeader(title: title).id(item.id)
-                        case .person(let person, _):
-                            SwipeableRow(
-                                rowID: item.id,
-                                phoneNumber: person.dialableNumber,
-                                isFavorite: favorites.contains(person.id),
-                                onCall: { launch("tel://\(person.dialableNumber ?? "")") },
-                                onMessage: { launch("sms:\(person.dialableNumber ?? "")") },
-                                onToggleFavorite: { favorites.toggle(person.id) },
-                                onTap: { openCard(for: person.id) },
-                                coordinator: swipe
-                            ) {
-                                ContactRowView(person: person, density: density)
-                            }
-                            .id(item.id)
+            List {
+                ForEach(sections) { section in
+                    Section {
+                        ForEach(section.people) { person in
+                            row(person, in: section)
                         }
+                    } header: {
+                        Text(section.title)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .textCase(nil)
+                            .id(section.id)
                     }
                 }
-                .scrollTargetLayout()
             }
-            .scrollPosition(id: $anchorID, anchor: .top)
+            .listStyle(.plain)
+            // Plain List leaves a generous gap above each header; the old
+            // hand-rolled list was tighter and this restores that density.
+            .listSectionSpacing(.compact)
+            .environment(\.defaultMinListRowHeight, 0)
             .scrollDismissesKeyboard(.immediately)
             .overlay(alignment: .trailing) {
                 if search.isEmpty {
@@ -176,16 +175,43 @@ struct ContactListView: View {
                     }
                 }
             }
-            .onChange(of: storedDensity) {
-                // Rows just changed shape underneath us. Re-pin whatever was at
-                // the top so a pinch zooms in place instead of teleporting.
-                guard let anchorID else { return }
-                proxy.scrollTo(anchorID, anchor: .top)
-            }
         }
         .simultaneousGesture(pinch)
         .overlay(alignment: .top) { densityBadge }
         .sensoryFeedback(.selection, trigger: storedDensity)
+    }
+
+    private func row(_ person: Person, in section: ListSection) -> some View {
+        ContactRowView(person: person, density: density)
+            .listRowInsets(EdgeInsets())
+            .alignmentGuide(.listRowSeparatorLeading) { _ in density.separatorInset }
+            .contentShape(.rect)
+            .onTapGesture { openCard(for: person.id) }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                if let number = person.dialableNumber {
+                    Button { launch("tel://\(number)") } label: {
+                        Label("Call", systemImage: "phone.fill")
+                    }
+                    .tint(.green)
+
+                    Button { launch("sms:\(number)") } label: {
+                        Label("Message", systemImage: "message.fill")
+                    }
+                    .tint(.blue)
+                }
+            }
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                Button { favorites.toggle(person.id) } label: {
+                    Label(
+                        favorites.contains(person.id) ? "Unfavourite" : "Favourite",
+                        systemImage: favorites.contains(person.id) ? "star.slash.fill" : "star.fill"
+                    )
+                }
+                .tint(.orange)
+            }
+            // A favourite appears both pinned at the top and in its normal
+            // section, so the row id must include the section or they collide.
+            .id("\(section.id)|\(person.id)")
     }
 
     // MARK: - Pinch
@@ -255,10 +281,8 @@ struct ContactListView: View {
 
     // MARK: - Sectioning
 
-    /// Everything below is a *pure function* of these inputs, deliberately, so
-    /// the work can run off the main actor. Sectioning a large address book is
-    /// tens of milliseconds — imperceptible in isolation, but very perceptible
-    /// when it happens between your finger landing and the list scrolling.
+    /// Sectioning is a *pure function* of these inputs, deliberately, so the
+    /// work can run off the main actor.
     private func rebuild() {
         buildToken &+= 1
         let token = buildToken
@@ -266,49 +290,38 @@ struct ContactListView: View {
         let query = search
         let grouped = density.groupsByCompany
         let pinned = favorites.ids
-        let buildStart = CFAbsoluteTimeGetCurrent()
 
         Task {
-            let data = await Task.detached(priority: .userInitiated) {
-                Self.buildList(people: people, query: query, groupByCompany: grouped, favorites: pinned)
+            let built = await Task.detached(priority: .userInitiated) {
+                Self.buildSections(people: people, query: query, groupByCompany: grouped, favorites: pinned)
             }.value
             // A newer rebuild may have started while this one ran.
             guard token == buildToken else { return }
-            listItems = data.items
-            indexEntries = data.index
-            let wasFirst = !hasBuilt
-            hasBuilt = true
-            if wasFirst {
-                #if DEBUG
-                print(String(format: "[perf] first build %.0fms  %d rows",
-                             (CFAbsoluteTimeGetCurrent() - buildStart) * 1000, data.items.count))
-                #endif
+            sections = built
+
+            var seen = Set<String>()
+            indexEntries = built.compactMap { section in
+                guard seen.insert(section.indexLetter).inserted else { return nil }
+                return IndexEntry(letter: section.indexLetter, sectionID: section.id)
             }
+            hasBuilt = true
         }
     }
 
-    struct ListData: Sendable {
-        var items: [ListItem] = []
-        var index: [IndexEntry] = []
-    }
-
-    private struct ListSection {
+    struct ListSection: Identifiable, Sendable {
         let id: String
         let title: String
         let indexLetter: String
         let people: [Person]
     }
 
-    /// Headers and rows flattened into one sequence. Keeping them as direct
-    /// children of `scrollTargetLayout()` is what lets `scrollPosition(id:)`
-    /// anchor on an individual contact.
-    nonisolated static func buildList(
+    nonisolated static func buildSections(
         people: [Person], query: String, groupByCompany: Bool, favorites: Set<String>
-    ) -> ListData {
+    ) -> [ListSection] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         let filtered = trimmed.isEmpty ? people : people.filter { $0.matches(trimmed) }
 
-        var sections = groupByCompany
+        var result = groupByCompany
             ? companySections(filtered)
             : alphabeticalSections(filtered)
 
@@ -319,28 +332,13 @@ struct ContactListView: View {
                 .filter { favorites.contains($0.id) }
                 .sorted { $0.sortKey.localizedStandardCompare($1.sortKey) == .orderedAscending }
             if !starred.isEmpty {
-                sections.insert(
-                    ListSection(id: "★", title: "Favorites", indexLetter: "★", people: starred),
+                result.insert(
+                    ListSection(id: "★", title: "Favourites", indexLetter: "★", people: starred),
                     at: 0
                 )
             }
         }
-
-        var items: [ListItem] = []
-        items.reserveCapacity(filtered.count + sections.count + 8)
-        var index: [IndexEntry] = []
-        var seenLetters = Set<String>()
-
-        for section in sections {
-            items.append(.header(id: section.id, title: section.title))
-            for person in section.people {
-                items.append(.person(person, sectionID: section.id))
-            }
-            if seenLetters.insert(section.indexLetter).inserted {
-                index.append(IndexEntry(letter: section.indexLetter, sectionID: section.id))
-            }
-        }
-        return ListData(items: items, index: index)
+        return result
     }
 
     nonisolated private static func alphabeticalSections(_ people: [Person]) -> [ListSection] {
@@ -387,36 +385,5 @@ struct ContactListView: View {
                 : (company.first.map { String($0).uppercased() } ?? "#")
             return ListSection(id: "¶\(company)", title: company, indexLetter: letter, people: members)
         }
-    }
-
-    enum ListItem: Identifiable, Hashable, Sendable {
-        case header(id: String, title: String)
-        case person(Person, sectionID: String)
-
-        var id: String {
-            switch self {
-            case .header(let id, _): id
-            // A favourite appears both pinned at the top and in its normal
-            // letter section, so the row id must include the section or the
-            // two copies collide.
-            case .person(let person, let sectionID): "\(sectionID)|\(person.id)"
-            }
-        }
-    }
-}
-
-struct SectionHeader: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DensityLevel.Layout.horizontalPadding)
-            .padding(.top, 10)
-            .padding(.bottom, 4)
-            .background(Color(uiColor: .secondarySystemBackground))
     }
 }

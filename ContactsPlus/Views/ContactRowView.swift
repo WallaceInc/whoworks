@@ -4,8 +4,6 @@ struct ContactRowView: View {
     let person: Person
     let density: DensityLevel
 
-    @Environment(\.displayScale) private var displayScale
-
     var body: some View {
         HStack(spacing: DensityLevel.Layout.avatarGap) {
             AvatarView(person: person, size: density.avatarSize)
@@ -42,12 +40,6 @@ struct ContactRowView: View {
         .padding(.vertical, density.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(.rect)
-        .overlay(alignment: .bottomLeading) {
-            Rectangle()
-                .fill(Color(uiColor: .separator))
-                .frame(height: 1 / displayScale)
-                .padding(.leading, density.separatorInset)
-        }
     }
 }
 
