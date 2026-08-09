@@ -21,6 +21,17 @@ final class ContactRepository {
     /// is worth surfacing — otherwise a half-empty list looks like a bug.
     private(set) var isLimitedAccess = false
 
+    /// Refetches without flipping back to `.loading`, so the list stays on
+    /// screen. Used after the contact card is dismissed, since the user may
+    /// have edited or deleted someone while it was open.
+    func reload() async {
+        guard state == .ready else { return }
+        guard let refreshed = try? await Task.detached(priority: .userInitiated, operation: {
+            try ContactRepository.fetchAll()
+        }).value else { return }
+        people = refreshed
+    }
+
     func load() async {
         guard state != .loading else { return }
         state = .loading

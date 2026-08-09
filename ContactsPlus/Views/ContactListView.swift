@@ -44,7 +44,14 @@ struct ContactListView: View {
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "Name or company"
                 )
-                .sheet(item: $card) { target in
+                .sheet(item: $card) {
+                    // Anything could have changed while the card was open —
+                    // an edit, or the contact being deleted outright.
+                    Task {
+                        await repo.reload()
+                        rebuild()
+                    }
+                } content: { target in
                     ContactCardView(contact: target.contact) { card = nil }
                         .ignoresSafeArea()
                 }
