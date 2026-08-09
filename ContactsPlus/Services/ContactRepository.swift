@@ -32,6 +32,37 @@ final class ContactRepository {
         people = refreshed
     }
 
+    /// Deletes a contact from the address book.
+    ///
+    /// Apple does not expose "Delete Contact" through `CNContactViewController`
+    /// — it only exists in the Contacts app itself — so the app provides its
+    /// own. Returns false if the contact had already gone.
+    func delete(id: String) async -> Bool {
+        let removed = await Task.detached(priority: .userInitiated) {
+            ContactRepository.performDelete(id: id)
+        }.value
+        if removed { await reload() }
+        return removed
+    }
+
+    nonisolated private static func performDelete(id: String) -> Bool {
+        let store = CNContactStore()
+        let keys = [CNContactIdentifierKey as CNKeyDescriptor]
+        guard let contact = try? store.unifiedContact(withIdentifier: id, keysToFetch: keys),
+              let mutable = contact.mutableCopy() as? CNMutableContact
+        else { return false }
+
+        let request = CNSaveRequest()
+        request.delete(mutable)
+        do {
+            try store.execute(request)
+            return true
+        } catch {
+            print("[contacts] delete failed: \(error)")
+            return false
+        }
+    }
+
     func load() async {
         guard state != .loading else { return }
         state = .loading

@@ -24,6 +24,7 @@ struct ContactListView: View {
     @State private var badgeVisible = false
     @State private var badgeToken = 0
     @State private var card: ContactCard?
+    @State private var pendingDelete: Person?
 
     /// Built off the main actor and cached — see `rebuild()`.
     @State private var sections: [ListSection] = []
@@ -60,6 +61,25 @@ struct ContactListView: View {
                     guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String
                     else { return }
                     openCard(for: id)
+                }
+                .confirmationDialog(
+                    pendingDelete.map { "Delete \($0.displayName)?" } ?? "",
+                    isPresented: Binding(
+                        get: { pendingDelete != nil },
+                        set: { if !$0 { pendingDelete = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Contact", role: .destructive) {
+                        guard let person = pendingDelete else { return }
+                        pendingDelete = nil
+                        Task {
+                            if await repo.delete(id: person.id) { rebuild() }
+                        }
+                    }
+                    Button("Cancel", role: .cancel) { pendingDelete = nil }
+                } message: {
+                    Text("This removes them from your iPhone and can't be undone here.")
                 }
                 .onChange(of: search) { rebuild() }
                 // Levels 0/1/2 share identical sectioning — only level 3 regroups,
@@ -205,6 +225,12 @@ struct ContactListView: View {
                         Label("Message", systemImage: "message.fill")
                     }
                     .tint(.blue)
+                }
+
+                // Listed last so it sits furthest from the edge — a short swipe
+                // reaches Call, never this.
+                Button(role: .destructive) { pendingDelete = person } label: {
+                    Label("Delete", systemImage: "trash.fill")
                 }
             }
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
