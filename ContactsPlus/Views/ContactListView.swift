@@ -24,6 +24,7 @@ struct ContactListView: View {
     @State private var badgeVisible = false
     @State private var badgeToken = 0
     @State private var card: ContactCard?
+    @State private var creatingContact = false
     @State private var moreOptions: Person?
     @State private var pendingDelete: Person?
 
@@ -40,12 +41,24 @@ struct ContactListView: View {
             content
                 .navigationTitle("Contacts")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { densityMenu }
+                .toolbar {
+                    newContactButton
+                    densityMenu
+                }
                 .searchable(
                     text: $search,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "Name or company"
                 )
+                .sheet(isPresented: $creatingContact) {
+                    Task {
+                        await repo.reload()
+                        rebuild()
+                    }
+                } content: {
+                    NewContactView { creatingContact = false }
+                        .ignoresSafeArea()
+                }
                 .sheet(item: $card) {
                     // Anything could have changed while the card was open —
                     // an edit, or the contact being deleted outright.
@@ -313,6 +326,15 @@ struct ContactListView: View {
             try? await Task.sleep(for: .seconds(1.2))
             guard token == badgeToken else { return }
             withAnimation(.easeIn(duration: 0.3)) { badgeVisible = false }
+        }
+    }
+
+    private var newContactButton: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { creatingContact = true } label: {
+                Image(systemName: "plus")
+            }
+            .accessibilityLabel("New Contact")
         }
     }
 
