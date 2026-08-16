@@ -25,6 +25,7 @@ struct ContactListView: View {
     @State private var badgeToken = 0
     @State private var card: ContactCard?
     @State private var creatingContact = false
+    @State private var variantInfo: VariantInfo?
     @State private var moreOptions: Person?
     @State private var pendingDelete: Person?
 
@@ -36,84 +37,12 @@ struct ContactListView: View {
 
     private var density: DensityLevel { DensityLevel.clamped(storedDensity) }
 
+    // The modifier chain is split into named stages purely so the Swift type
+    // checker can cope; a single chain this long makes it give up.
+
     var body: some View {
         NavigationStack {
-            content
-                .navigationTitle("Contacts")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    newContactButton
-                    densityMenu
-                }
-                .searchable(
-                    text: $search,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "Name or company"
-                )
-                .sheet(isPresented: $creatingContact) {
-                    Task {
-                        await repo.reload()
-                        rebuild()
-                    }
-                } content: {
-                    NewContactView { creatingContact = false }
-                        .ignoresSafeArea()
-                }
-                .sheet(item: $card) {
-                    // Anything could have changed while the card was open —
-                    // an edit, or the contact being deleted outright.
-                    Task {
-                        await repo.reload()
-                        rebuild()
-                    }
-                } content: { target in
-                    ContactCardView(contact: target.contact) { card = nil }
-                        .ignoresSafeArea()
-                }
-                // Opening a Spotlight result jumps straight to that person's card.
-                .onContinueUserActivity(CSSearchableItemActionType) { activity in
-                    guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String
-                    else { return }
-                    openCard(for: id)
-                }
-                .confirmationDialog(
-                    moreOptions?.displayName ?? "",
-                    isPresented: Binding(
-                        get: { moreOptions != nil },
-                        set: { if !$0 { moreOptions = nil } }
-                    ),
-                    titleVisibility: .visible
-                ) {
-                    Button("Delete Contact…", role: .destructive) {
-                        pendingDelete = moreOptions
-                        moreOptions = nil
-                    }
-                    Button("Cancel", role: .cancel) { moreOptions = nil }
-                }
-                .confirmationDialog(
-                    pendingDelete.map { "Delete \($0.displayName)?" } ?? "",
-                    isPresented: Binding(
-                        get: { pendingDelete != nil },
-                        set: { if !$0 { pendingDelete = nil } }
-                    ),
-                    titleVisibility: .visible
-                ) {
-                    Button("Delete Contact", role: .destructive) {
-                        guard let person = pendingDelete else { return }
-                        pendingDelete = nil
-                        Task {
-                            if await repo.delete(id: person.id) { rebuild() }
-                        }
-                    }
-                    Button("Cancel", role: .cancel) { pendingDelete = nil }
-                } message: {
-                    Text("This removes them from your iPhone and can't be undone here.")
-                }
-                .onChange(of: search) { rebuild() }
-                // Levels 0/1/2 share identical sectioning — only level 3 regroups,
-                // so most zoom steps need no rebuild at all.
-                .onChange(of: density.groupsByCompany) { rebuild() }
-                .onChange(of: favorites.ids) { rebuild() }
+            screen
         }
         .task {
             await repo.load()
@@ -138,6 +67,107 @@ struct ContactListView: View {
             }
             #endif
         }
+    }
+
+    private var screen: some View {
+        dialogs
+            .navigationTitle("Contacts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                newContactButton
+                densityMenu
+            }
+            .searchable(
+                text: $search,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Name or company"
+            )
+            .onChange(of: search) { rebuild() }
+            // Levels 0/1/2 share identical sectioning — only level 3 regroups,
+            // so most zoom steps need no rebuild at all.
+            .onChange(of: density.groupsByCompany) { rebuild() }
+            .onChange(of: favorites.ids) { rebuild() }
+            // Opening a Spotlight result jumps straight to that person's card.
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String
+                else { return }
+                openCard(for: id)
+            }
+    }
+
+    private var dialogs: some View {
+        sheets
+            .confirmationDialog(
+                moreOptions?.displayName ?? "",
+                isPresented: Binding(
+                    get: { moreOptions != nil },
+                    set: { if !$0 { moreOptions = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Delete Contact…", role: .destructive) {
+                    pendingDelete = moreOptions
+                    moreOptions = nil
+                }
+                Button("Cancel", role: .cancel) { moreOptions = nil }
+            }
+            .confirmationDialog(
+                pendingDelete.map { "Delete \($0.displayName)?" } ?? "",
+                isPresented: Binding(
+                    get: { pendingDelete != nil },
+                    set: { if !$0 { pendingDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Delete Contact", role: .destructive) {
+                    guard let person = pendingDelete else { return }
+                    pendingDelete = nil
+                    Task {
+                        if await repo.delete(id: person.id) { rebuild() }
+                    }
+                }
+                Button("Cancel", role: .cancel) { pendingDelete = nil }
+            } message: {
+                Text("This removes them from your iPhone and can't be undone here.")
+            }
+            .alert(
+                variantInfo?.company ?? "",
+                isPresented: Binding(
+                    get: { variantInfo != nil },
+                    set: { if !$0 { variantInfo = nil } }
+                ),
+                presenting: variantInfo
+            ) { _ in
+                Button("OK", role: .cancel) { variantInfo = nil }
+            } message: { info in
+                Text("Grouped from these spellings:\n\n"
+                     + info.spellings.joined(separator: "\n")
+                     + "\n\nYour contacts are unchanged.")
+            }
+    }
+
+    private var sheets: some View {
+        content
+            .sheet(isPresented: $creatingContact) {
+                Task {
+                    await repo.reload()
+                    rebuild()
+                }
+            } content: {
+                NewContactView { creatingContact = false }
+                    .ignoresSafeArea()
+            }
+            .sheet(item: $card) {
+                // Anything could have changed while the card was open — an
+                // edit, or the contact being deleted outright.
+                Task {
+                    await repo.reload()
+                    rebuild()
+                }
+            } content: { target in
+                ContactCardView(contact: target.contact) { card = nil }
+                    .ignoresSafeArea()
+            }
     }
 
     private func launch(_ string: String) {
@@ -209,11 +239,7 @@ struct ContactListView: View {
                             row(person, in: section)
                         }
                     } header: {
-                        Text(section.title)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .textCase(nil)
-                            .id(section.id)
+                        header(for: section)
                     }
                 }
             }
@@ -234,6 +260,32 @@ struct ContactListView: View {
         .simultaneousGesture(pinch)
         .overlay(alignment: .top) { densityBadge }
         .sensoryFeedback(.selection, trigger: storedDensity)
+    }
+
+    @ViewBuilder
+    private func header(for section: ListSection) -> some View {
+        HStack(spacing: 6) {
+            Text(section.title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if section.spellings.count > 1 {
+                Button {
+                    variantInfo = VariantInfo(company: section.title, spellings: section.spellings)
+                } label: {
+                    Text("\(section.spellings.count) spellings")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.14), in: .capsule)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .textCase(nil)
+        .id(section.id)
     }
 
     private func row(_ person: Person, in section: ListSection) -> some View {
@@ -387,6 +439,15 @@ struct ContactListView: View {
         let title: String
         let indexLetter: String
         let people: [Person]
+        /// Distinct spellings of the company that were merged into this group.
+        /// More than one means the heading is a normalisation of several.
+        var spellings: [String] = []
+    }
+
+    struct VariantInfo: Identifiable {
+        let company: String
+        let spellings: [String]
+        var id: String { company }
     }
 
     nonisolated static func buildSections(
@@ -438,26 +499,55 @@ struct ContactListView: View {
 
     /// Grouped by company, alphabetically, with everyone lacking a company
     /// collected under "Unknown" at the bottom.
+    /// Grouped by company, alphabetically, with everyone lacking a company
+    /// collected under "Unknown" at the bottom.
+    ///
+    /// Grouping is by *normalised* name, so "Siemens", "SIEMENS" and
+    /// "Siemens AG" form one section instead of three. Nothing is written back
+    /// — the contacts keep whatever spelling they have.
     nonisolated private static func companySections(_ people: [Person]) -> [ListSection] {
         var groups: [String: [Person]] = [:]
+        var spellings: [String: [String]] = [:]
+
         for person in people {
-            let key = person.companyGroup.isEmpty ? unknownCompany : person.companyGroup
-            groups[key, default: []].append(person)
+            let raw = person.companyGroup
+            if raw.isEmpty {
+                groups[unknownCompany, default: []].append(person)
+            } else {
+                let key = CompanyNormalizer.key(raw)
+                groups[key, default: []].append(person)
+                spellings[key, default: []].append(raw)
+            }
+        }
+
+        // Sort by the spelling actually shown, not the normalised key.
+        var titles: [String: String] = [:]
+        for (key, variants) in spellings {
+            titles[key] = CompanyNormalizer.preferredSpelling(from: variants)
         }
 
         var ordered = groups.keys
             .filter { $0 != unknownCompany }
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            .sorted { (titles[$0] ?? $0).localizedStandardCompare(titles[$1] ?? $1) == .orderedAscending }
         if groups[unknownCompany] != nil { ordered.append(unknownCompany) }
 
-        return ordered.map { company in
-            let members = (groups[company] ?? []).sorted {
+        return ordered.map { key in
+            let members = (groups[key] ?? []).sorted {
                 $0.sortKey.localizedStandardCompare($1.sortKey) == .orderedAscending
             }
-            let letter = company == unknownCompany
+            let isUnknown = key == unknownCompany
+            let title = isUnknown ? unknownCompany : (titles[key] ?? key)
+            let letter = isUnknown
                 ? "#"
-                : (company.first.map { String($0).uppercased() } ?? "#")
-            return ListSection(id: "¶\(company)", title: company, indexLetter: letter, people: members)
+                : (title.first.map { String($0).uppercased() } ?? "#")
+            let distinct = Array(Set(spellings[key] ?? [])).sorted()
+            return ListSection(
+                id: "¶\(key)",
+                title: title,
+                indexLetter: letter,
+                people: members,
+                spellings: distinct
+            )
         }
     }
 }

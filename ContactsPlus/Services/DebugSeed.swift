@@ -28,6 +28,11 @@ enum DebugSeed {
         ("Sol", "Petrov", "", "", "s.petrov@ibm.com"),
         ("Marta", "Vidal", "", "555-0166", "m.vidal@bbc.co.uk"),
         ("Ines", "Duarte", "", "", "ines@long-harbour.co"),
+        // Spelling variants of companies already present, to exercise grouping
+        ("Greta", "Sandoval", "Siemens AG", "555-0181", ""),
+        ("Paul", "Achterberg", "SIEMENS", "", ""),
+        ("Hugo", "Mbeki", "Acme Plumbing, LLC", "555-0177", ""),
+        ("Yuki", "Tanaka", "acme plumbing", "", ""),
         // Personal email — must NOT be treated as a company
         ("Junia", "Wren", "", "555-0121", "junia.wren@gmail.com"),
         ("Cass", "Miles", "", "555-0133", "cass@icloud.com"),
