@@ -21,3 +21,7 @@ xcuserdata/
 # Fastlane / CI artefacts
 fastlane/report.xml
 fastlane/screenshots/
+
+# Demo recordings — large binaries, kept locally
+*.mov
+*.mp4
